@@ -7,6 +7,7 @@
 	missingok
 	notifempty
 	delaycompress
+	su nginx nginx
 	lastaction
 		# -s reopen will use the pid file passed in the config file or the compiled in default path
 		/usr/sbin/nginx -s reopen
