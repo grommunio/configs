@@ -15,7 +15,7 @@ from os.path import basename
 
 proc_name = basename(sys.argv[0])
 
-CONFIG="/etc/grommunio-common/ssl/grommunio-certbot-deploy-hook.conf"
+CONFIG="/etc/grommunio-common/grommunio-certbot-deploy-hook.conf"
 
 def get_config():
     try:
