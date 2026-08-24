@@ -1,0 +1,43 @@
+# Rotation for the php-fpm master error log.
+#
+# openSUSE/SLE's php8-fpm ships no logrotate configuration and leaves
+# "error_log" commented out in php-fpm.conf, so the FPM master falls back to its
+# compiled-in default of /var/log/php-fpm.log. grommunio's pools run with
+# catch_workers_output=yes, so all worker stderr lands there too and the file
+# grows unbounded -- 1.4 GiB seen on a production appliance, most of it written
+# during a two-week window with log_level = debug.
+#
+# Debian/Ubuntu (/var/log/phpX.Y-fpm.log) and RHEL/Fedora (/var/log/php-fpm/*log)
+# rotate this log through their own php-fpm package; there the path below does
+# not exist and "missingok" makes this a no-op. Keep the path literal -- a glob
+# risks claiming a file a distro-shipped stanza already claims, which logrotate
+# answers with "duplicate log entry for ..." and exit 1, disabling whichever of
+# the two it parses second.
+/var/log/php-fpm.log {
+	compress
+	dateext
+	maxage 365
+	rotate 4
+	size=+4096k
+	missingok
+	notifempty
+	delaycompress
+	create 0600 root root
+	postrotate
+		# php-fpm holds the log by inode, so it must be told to reopen it or it
+		# keeps appending to the rotated-away file while /var/log/php-fpm.log
+		# stays at 0 bytes -- never again reaching the size threshold, so the
+		# renamed inode's space is never reclaimed.
+		#
+		# SIGUSR1 is "re-open log file" (php-fpm(8)) and must reach ONLY the
+		# master: workers reset it to SIG_DFL, whose default action is Term, so
+		# a bare "systemctl kill -s USR1" (--kill-whom defaults to "all") would
+		# kill every worker mid-request. openSUSE writes no pid file ("pid" is
+		# commented out and the unit runs --nodaemonize), so the master pid
+		# comes from systemd.
+		mainpid=$(systemctl show -p MainPID --value php-fpm.service 2>/dev/null)
+		if [ -n "$mainpid" ] && [ "$mainpid" != "0" ]; then
+			kill -USR1 "$mainpid" 2>/dev/null || :
+		fi
+	endscript
+}
